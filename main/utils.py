@@ -146,3 +146,83 @@ def eyesExtractor(img, right_eye_coords, left_eye_coords):
 
     # returning the cropped eyes 
     return cropped_right, cropped_left
+
+
+
+
+# Constants for eye position estimation
+POSITION_THRESHOLD = 0.4  # Threshold for considering a part as the dominant eye position
+
+# Eye positions
+EYE_POSITIONS = {
+    "RIGHT": {
+        "color": (0, 255, 0),  # Green
+        "parts": [0],
+        "direction": "Right",
+    },
+    "CENTER": {
+        "color": (0, 255, 255),  # Yellow
+        "parts": [1],
+        "direction": "Center",
+    },
+    "LEFT": {
+        "color": (255 , 0 , 0),  # Gray
+        "parts": [2],
+        "direction": "Left",
+    },
+    "CLOSED": {
+        "color": (128, 128, 128),  # Gray
+        "parts": [],
+        "direction": "Closed",
+    },
+}
+
+#Eyes position estimator
+def positionEstimator(cropped_eye):
+    # Getting height and width of the eye
+    h, w = cropped_eye.shape
+
+    # Remove noise from the image
+    gaussian_blur = cv.GaussianBlur(cropped_eye, (9, 9), 0)
+    median_blur = cv.medianBlur(gaussian_blur, 3)
+
+    # Apply thresholding to convert to binary image
+    _, threshed_eye = cv.threshold(median_blur, 130, 255, cv.THRESH_BINARY)
+
+    # Divide the eye into three parts with adjusted division points
+    piece1 = int(w * 0.3)
+    piece2 = int(w * 0.6)
+
+    # Slice the eye into three parts
+    left_part = threshed_eye[:, :piece1]
+    center_part = threshed_eye[:, piece1:piece2]
+    right_part = threshed_eye[:, piece2:]
+
+    # Count the black pixels in each part
+    left_pixels = np.sum(left_part == 0)
+    center_pixels = np.sum(center_part == 0)
+    right_pixels = np.sum(right_part == 0)
+
+    # Calculate the ratios of black pixels in each part
+    total_left_pixels = left_part.shape[0] * left_part.shape[1]
+    total_center_pixels = center_part.shape[0] * center_part.shape[1]
+    total_right_pixels = right_part.shape[0] * right_part.shape[1]
+
+    left_ratio = left_pixels / total_left_pixels
+    center_ratio = center_pixels / total_center_pixels
+    right_ratio = right_pixels / total_right_pixels
+
+    # Find the dominant eye position
+    max_ratio = max(left_ratio, center_ratio, right_ratio)
+    eye_position = "CLOSED"
+
+    if max_ratio >= POSITION_THRESHOLD:
+        if max_ratio == left_ratio:
+            eye_position = "LEFT"
+        elif max_ratio == center_ratio:
+            eye_position = "CENTER"
+        elif max_ratio == right_ratio:
+            eye_position = "RIGHT"
+
+    return eye_position, EYE_POSITIONS[eye_position]["color"], EYE_POSITIONS[eye_position]["direction"]
+
